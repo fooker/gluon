@@ -42,6 +42,9 @@ for _, config in ipairs({'wifi24', 'wifi5'}) do
 		need_string(in_site({'regdom'})) -- regdom is only required when wifi24 or wifi5 is configured
 
 		need_number({config, 'channel'})
+		if config == 'wifi5' then
+			need_string_match({config, 'outdoor_chanlist'}, '^[%d%s-]+$', false)
+		end
 
 		local rates = {1000, 2000, 5500, 6000, 9000, 11000, 12000, 18000, 24000, 36000, 48000, 54000}
 		local supported_rates = need_array_of(in_site({config, 'supported_rates'}), rates, false)

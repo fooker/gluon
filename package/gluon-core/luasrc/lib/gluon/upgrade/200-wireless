@@ -12,22 +12,37 @@ if not sysconfig.gluon_version then
 	uci:delete_all('wireless', 'wifi-iface')
 end
 
+local function is_outdoor()
+	return uci:get_bool('gluon', 'wireless', 'outdoor')
+end
+
 local function get_channel(radio, config)
-	local channel
 	if uci:get_first('gluon-core', 'wireless', 'preserve_channels') then
-		channel = radio.channel
+		return radio.channel
 	end
 
-	return channel or config.channel()
+	if  (radio.hwmode == '11a' or radio.hwmode == '11na') and is_outdoor() then
+		-- actual channel will be picked and probed from chanlist
+		return 'auto'
+	end
+	
+	return config.channel()
 end
 
 local function get_htmode(radio)
-       local phy = util.find_phy(radio)
-       if iwinfo.nl80211.hwmodelist(phy).ac then
-               return 'VHT20'
-       else
-               return 'HT20'
-       end
+	if (radio.hwmode == '11a' or radio.hwmode == '11na') and is_outdoor() then
+		local outdoor_htmode = uci:get('gluon', 'wireless', 'outdoor_' .. radio['.name'] .. '_htmode')
+		if outdoor_htmode ~= nil then
+			return outdoor_htmode
+		end
+	end
+
+	local phy = util.find_phy(radio)
+	if iwinfo.nl80211.hwmodelist(phy).ac then
+		return 'VHT20'
+	end
+
+	return 'HT20'
 end
 
 local function is_disabled(name)
@@ -170,15 +185,25 @@ util.foreach_radio(uci, function(radio, index, config)
 	uci:set('wireless', radio_name, 'htmode', htmode)
 	uci:set('wireless', radio_name, 'country', site.regdom())
 
+	local outdoor_disabled = false
+	if (radio.hwmode == '11a' or radio.hwmode == '11na') then
+		if is_outdoor() then
+			uci:set('wireless', radio_name, 'channels', config.outdoor_chanlist())
+			outdoor_disabled = true
+		else
+			uci:delete('wireless', radio_name, 'channels')
+		end
+	end
+
 	uci:set_list('wireless', radio_name, 'supported_rates', config.supported_rates())
 	uci:set_list('wireless', radio_name, 'basic_rate', config.basic_rate())
-
 
 	local ibss_disabled = is_disabled('ibss_' .. radio_name)
 	local mesh_disabled = is_disabled('mesh_' .. radio_name)
 
 	configure_ibss(config.ibss(), radio, index, suffix,
 		first_non_nil(
+			outdoor_disabled,
 			ibss_disabled,
 			mesh_disabled,
 			config.ibss.disabled(false)
@@ -186,6 +211,7 @@ util.foreach_radio(uci, function(radio, index, config)
 	)
 	configure_mesh(config.mesh(), radio, index, suffix,
 		first_non_nil(
+			outdoor_disabled,
 			mesh_disabled,
 			ibss_disabled,
 			config.mesh.disabled(false)
