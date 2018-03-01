@@ -1,0 +1,27 @@
+#!/usr/bin/lua
+
+local uci = require('simple-uci').cursor()
+
+if uci:get('gluon', 'wireless', 'outdoor') ~= nil then
+	os.exit(0)
+end
+
+local platform_info = require 'platform_info'
+local util = require 'gluon.util'
+
+local outdoor_models = {
+    'tp-link-cpe510-v1.0',
+    'tp-link-cpe510-v1.1',
+    'ubiquiti-nanostation-m5',
+    'ubiquiti-nanostation-m5-xw',
+    'ubiquiti-nanostation-loco-m5',
+    'ubiquiti-nanostation-loco-m5-xw',
+    'ubiquiti-unifi-ac-mesh',
+}
+local model = platform_info.get_image_name()
+
+uci:section('gluon', 'wireless', 'wireless', {
+    outdoor = util.contains(outdoor_models, model) ~= false
+})
+
+uci:save('gluon.wireless')
