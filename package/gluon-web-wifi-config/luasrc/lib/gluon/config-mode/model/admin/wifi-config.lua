@@ -25,16 +25,15 @@ local function txpower_list(phy)
 end
 
 local function has_5ghz_radio()
+	local result = false
 	uci:foreach('wireless', 'wifi-device', function(config)
 		local radio = config['.name']
 		local hwmode = uci:get('wireless', radio, 'hwmode')
 
-		if hwmode == '11a' or hwmode == '11na' then
-			return true
-		end
+		result = result or (hwmode == '11a' or hwmode == '11na')
 	end)
 
-	return false
+	return result
 end
 
 local f = Form(translate("WLAN"))
